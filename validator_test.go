@@ -2503,7 +2503,7 @@ func TestInterfaceErrValidation(t *testing.T) {
 
 	errs = validate.Struct(s4)
 	NotEqual(t, errs, nil)
-	Equal(t, len(errs.(ValidationErrors)), 1)
+	Equal(t, len(errs.(ValidationErrors)), 2)
 	AssertError(t, errs, "ExternalCMD.Data.Name", "Name", "required")
 
 	type TestMapStructPtr struct {
@@ -5819,4 +5819,61 @@ func TestPointerAndOmitEmpty(t *testing.T) {
 
 	errs = validate.Struct(ti3)
 	Equal(t, errs, nil)
+}
+
+// Test a validator being set for a structure field
+func TestValidateStructAsField(t *testing.T) {
+
+	type TestStructureField struct {
+		Num1 int `validate:"gte=10"`
+		Num2 int `validate:"lte=100"`
+	}
+
+	type TestStructureValidatedAsField struct {
+		NoStructLevelField TestStructureField  `validate:"nostructlevel,structasfield"`
+		StructLevelField   TestStructureField  `validate:"structasfield"`
+		PointerField       *TestStructureField `validate:"omitempty,structasfield"`
+	}
+
+	// We'll fail field level validation if both Num1 and Num2 are 20.
+	fn := func(v *Validate, topStruct reflect.Value, currentStruct reflect.Value, field reflect.Value, fieldType reflect.Type, fieldKind reflect.Kind, param string) bool {
+		f := field.Interface().(TestStructureField)
+		return f.Num1 != 20 || f.Num2 != 20
+	}
+
+	config := &Config{
+		TagName: "validate",
+	}
+
+	validate := New(config)
+
+	errs := validate.RegisterValidation("structasfield", fn)
+	Equal(t, errs, nil)
+
+	// Check both per-field level and structure level validation pass.
+	t1 := TestStructureValidatedAsField{
+		NoStructLevelField: TestStructureField{Num1: 15, Num2: 25},
+		StructLevelField: TestStructureField{Num1: 15, Num2: 25},
+		PointerField: &TestStructureField{Num1: 15, Num2: 25},
+	}
+	errs = validate.Struct(t1)
+	Equal(t, errs, nil)
+
+	// Check per-field validation fails.
+	t2 := TestStructureValidatedAsField{
+		NoStructLevelField: TestStructureField{Num1: 5, Num2: 25},
+		StructLevelField: TestStructureField{Num1: 15, Num2: 250},
+		PointerField: &TestStructureField{Num1: 15, Num2: 101},
+	}
+	errs = validate.Struct(t2)
+	AssertError(t, errs, "TestStructureField.Num2", "Num2", "gte")
+
+	// Check structure validation fails.
+	t3 := TestStructureValidatedAsField{
+		NoStructLevelField: TestStructureField{Num1: 20, Num2: 20},
+		StructLevelField: TestStructureField{Num1: 20, Num2: 20},
+		PointerField: &TestStructureField{Num1: 20, Num2: 20},
+	}
+	errs = validate.Struct(t3)
+	AssertError(t, errs, "TestStructureField.Num2", "Num2", "gte")
 }

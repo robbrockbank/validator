@@ -637,14 +637,8 @@ func (v *Validate) traverseField(topStruct reflect.Value, currentStruct reflect.
 	case reflect.Struct:
 		typ = current.Type()
 
-		if typ != timeType {
-
-			if cTag.isNoStructLevel {
-				return
-			}
-
-			v.tranverseStruct(topStruct, current, current, errPrefix+name+namespaceSeparator, nsPrefix+customName+namespaceSeparator, errs, false, partial, exclude, includeExclude, cTag.isStructOnly)
-			return
+		if typ != timeType && !cTag.isNoStructLevel {
+			v.tranverseStruct(topStruct, current, current, errPrefix + name + namespaceSeparator, nsPrefix + customName + namespaceSeparator, errs, false, partial, exclude, includeExclude, cTag.isStructOnly)
 		}
 	}
 
@@ -660,6 +654,14 @@ func (v *Validate) traverseField(topStruct reflect.Value, currentStruct reflect.
 	for _, valTag := range cTag.tags {
 
 		if valTag.tagVals[0][0] == existsTag {
+			continue
+		}
+
+		if valTag.tagVals[0][0] == noStructLevelTag {
+			continue
+		}
+
+		if valTag.tagVals[0][0] == structOnlyTag {
 			continue
 		}
 
